@@ -452,22 +452,39 @@ local function GetPlayerRoleFast(player)
     return "Innocent"
 end
 
-local function GetMurderer()
+local CachedMurderer = nil
+local CachedSheriff = nil
+local lastRoleCacheTime = 0
+
+local function UpdateRoleCache()
+    local m, s = nil, nil
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and GetPlayerRoleFast(p) == "Murderer" then
-            return p
+        if p ~= LocalPlayer then
+            local role = GetPlayerRoleFast(p)
+            if role == "Murderer" and not m then
+                m = p
+            elseif role == "Sheriff" and not s then
+                s = p
+            end
         end
     end
-    return nil
+    CachedMurderer = m
+    CachedSheriff = s
+    lastRoleCacheTime = tick()
+end
+
+local function GetMurderer()
+    if tick() - lastRoleCacheTime > 0.6 or not CachedMurderer or not CachedMurderer.Parent then
+        UpdateRoleCache()
+    end
+    return CachedMurderer
 end
 
 local function GetSheriff()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and GetPlayerRoleFast(p) == "Sheriff" then
-            return p
-        end
+    if tick() - lastRoleCacheTime > 0.6 or not CachedSheriff or not CachedSheriff.Parent then
+        UpdateRoleCache()
     end
-    return nil
+    return CachedSheriff
 end
 
 local function GetClosestTargetForMurder()
@@ -501,57 +518,56 @@ local checkcaller = checkcaller or function() return false end
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-        -- Règle absolue de sécurité metamethod : toujours vérifier typeof(self) == "Instance"
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Mouse") then
-            -- Protection totale du trade : ne jamais altérer Mouse lors d'un échange
-            local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            local tradeGui = pGui and pGui:FindFirstChild("TradeGUI")
-            if tradeGui and tradeGui.Enabled then
-                return oldIndex(self, key)
-            end
+        -- Filtre O(1) instantané : NE PAS exécuter de reflection si key n'est ni "Hit" ni "Target" !
+        if (key == "Hit" or key == "Target") and State.AimbotEnabled and not checkcaller() then
+            -- Règle absolue de sécurité metamethod : toujours vérifier typeof(self) == "Instance"
+            if typeof(self) == "Instance" and self:IsA("Mouse") then
+                -- Protection totale du trade : ne jamais altérer Mouse lors d'un échange
+                local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+                local tradeGui = pGui and pGui:FindFirstChild("TradeGUI")
+                if tradeGui and tradeGui.Enabled then
+                    return oldIndex(self, key)
+                end
 
-            if (key == "Hit" or key == "Target") and State.AimbotEnabled then
                 local char = LocalPlayer.Character
                 if char then
-                    local holdingGun = false
-                    local holdingKnife = false
                     local tool = char:FindFirstChildOfClass("Tool")
                     if tool then
-                        holdingGun = IsGun(tool)
-                        holdingKnife = IsKnife(tool)
-                    end
+                        local holdingGun = IsGun(tool)
+                        local holdingKnife = IsKnife(tool)
 
-                    local target = nil
+                        local target = nil
 
-                    -- 1. Mode Sheriff : Cible le Murderer
-                    if holdingGun and State.SilentAimSheriff then
-                        target = GetMurderer()
+                        -- 1. Mode Sheriff : Cible le Murderer
+                        if holdingGun and State.SilentAimSheriff then
+                            target = GetMurderer()
 
-                    -- 2. Mode Murderer : Cible le joueur choisi ou le plus proche
-                    elseif holdingKnife and State.SilentAimMurder then
-                        target = State.TargetPlayer or GetClosestTargetForMurder()
-                    end
+                        -- 2. Mode Murderer : Cible le joueur choisi ou le plus proche
+                        elseif holdingKnife and State.SilentAimMurder then
+                            target = State.TargetPlayer or GetClosestTargetForMurder()
+                        end
 
-                    if target and target.Character and IsPlayerInGame(target) then
-                        local part = target.Character:FindFirstChild(State.TargetPart) or target.Character:FindFirstChild("HumanoidRootPart")
-                        if part then
-                            local finalPos = part.Position
+                        if target and target.Character and IsPlayerInGame(target) then
+                            local part = target.Character:FindFirstChild(State.TargetPart) or target.Character:FindFirstChild("HumanoidRootPart")
+                            if part then
+                                local finalPos = part.Position
 
-                            -- Prédiction adaptative de trajectoire selon la vélocité et la distance
-                            if State.PredictMovement and (part.AssemblyLinearVelocity or part.Velocity) then
-                                local myHrp = char:FindFirstChild("HumanoidRootPart")
-                                local myPos = myHrp and myHrp.Position or char:GetPivot().Position
-                                local dist = (myPos - part.Position).Magnitude
-                                local projectileSpeed = holdingGun and 300 or 150
-                                local leadTime = math.clamp(dist / projectileSpeed, 0.02, 0.45)
-                                local vel = part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
-                                finalPos = finalPos + (vel * leadTime)
-                            end
+                                -- Prédiction adaptative de trajectoire selon la vélocité et la distance
+                                if State.PredictMovement and (part.AssemblyLinearVelocity or part.Velocity) then
+                                    local myHrp = char:FindFirstChild("HumanoidRootPart")
+                                    local myPos = myHrp and myHrp.Position or char:GetPivot().Position
+                                    local dist = (myPos - part.Position).Magnitude
+                                    local projectileSpeed = holdingGun and 300 or 150
+                                    local leadTime = math.clamp(dist / projectileSpeed, 0.02, 0.45)
+                                    local vel = part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
+                                    finalPos = finalPos + (vel * leadTime)
+                                end
 
-                            if key == "Hit" then
-                                return CFrame.new(finalPos)
-                            elseif key == "Target" then
-                                return part
+                                if key == "Hit" then
+                                    return CFrame.new(finalPos)
+                                elseif key == "Target" then
+                                    return part
+                                end
                             end
                         end
                     end
@@ -568,10 +584,11 @@ end
 if hookmetamethod then
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        -- Règle absolue de sécurité metamethod : toujours vérifier typeof(self) == "Instance"
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("RemoteEvent") then
-            local method = getnamecallmethod()
-            if method == "FireServer" and State.AimbotEnabled and State.SilentAimMurder then
+        local method = getnamecallmethod()
+        -- Filtre O(1) instantané : uniquement si method est "FireServer"
+        if method == "FireServer" and State.AimbotEnabled and State.SilentAimMurder and not checkcaller() then
+            -- Règle absolue de sécurité metamethod : toujours vérifier typeof(self) == "Instance"
+            if typeof(self) == "Instance" and self:IsA("RemoteEvent") then
                 local remoteName = self.Name:lower()
                 if remoteName == "knifethrown" or remoteName:find("throw") then
                     local target = State.TargetPlayer or GetClosestTargetForMurder()
@@ -966,9 +983,9 @@ task.spawn(function()
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if not tool or not IsGun(tool) then
-                task.wait(0.12)
+                task.wait(0.15)
             else
-                RunService.RenderStepped:Wait()
+                task.wait(0.04)
                 local murderer = GetMurderer()
                 if murderer and murderer.Character and IsPlayerInGame(murderer) then
                     local mChar = murderer.Character
@@ -1134,12 +1151,12 @@ local function ClearAllESP()
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             local hl = p.Character:FindFirstChild("MM2_Highlight")
-            if hl then hl:Destroy() end
+            if hl then hl.Enabled = false end
 
             local head = p.Character:FindFirstChild("Head")
             if head then
                 local tag = head:FindFirstChild("MM2_NameTag")
-                if tag then tag:Destroy() end
+                if tag then tag.Enabled = false end
             end
         end
     end
@@ -1147,10 +1164,10 @@ end
 
 task.spawn(function()
     while true do
-        -- Si ESP désactivé OU LocalPlayer au Lobby : TOUT NETTOYER
+        -- Si ESP désactivé OU LocalPlayer au Lobby : masquer
         if not (State.RoleESP or State.NameTagsESP) or not IsPlayerInGame(LocalPlayer) then
             ClearAllESP()
-            task.wait(0.7)
+            task.wait(0.8)
         else
             -- LocalPlayer est bien en match : afficher les joueurs en match
             local myChar = LocalPlayer.Character
@@ -1182,22 +1199,23 @@ task.spawn(function()
                             hl.FillTransparency = 0.4
                             hl.Enabled = true
                         elseif hl then
-                            hl:Destroy()
+                            hl.Enabled = false
                         end
 
                         -- 3D NameTag
                         if State.NameTagsESP then
                             UpdateNameTag(p, role, color, dist)
+                            if tag then tag.Enabled = true end
                         elseif tag then
-                            tag:Destroy()
+                            tag.Enabled = false
                         end
                     else
-                        if hl then hl:Destroy() end
-                        if tag then tag:Destroy() end
+                        if hl then hl.Enabled = false end
+                        if tag then tag.Enabled = false end
                     end
                 end
             end
-            task.wait(0.4)
+            task.wait(0.6)
         end
     end
 end)
@@ -1498,25 +1516,22 @@ FpsBadge.Parent = Header
 Instance.new("UICorner", FpsBadge).CornerRadius = UDim.new(0, 5)
 
 task.spawn(function()
-    local frames = 0
-    local lastCheck = tick()
-    RunService.RenderStepped:Connect(function()
-        frames = frames + 1
-        local now = tick()
-        if now - lastCheck >= 0.5 then
-            local currentFps = math.floor(frames / (now - lastCheck))
-            FpsBadge.Text = "⚡ " .. tostring(currentFps) .. " FPS"
-            if currentFps >= 120 then
-                FpsBadge.TextColor3 = Theme.Green
-            elseif currentFps >= 60 then
-                FpsBadge.TextColor3 = Theme.Yellow
-            else
-                FpsBadge.TextColor3 = Theme.Red
-            end
-            frames = 0
-            lastCheck = now
+    while true do
+        task.wait(0.5)
+        local fps = 60
+        pcall(function()
+            fps = math.floor(Workspace:GetRealPhysicsFPS())
+        end)
+        if fps <= 0 then fps = 60 end
+        FpsBadge.Text = "⚡ " .. tostring(fps) .. " FPS"
+        if fps >= 55 then
+            FpsBadge.TextColor3 = Theme.Green
+        elseif fps >= 30 then
+            FpsBadge.TextColor3 = Theme.Yellow
+        else
+            FpsBadge.TextColor3 = Theme.Red
         end
-    end)
+    end
 end)
 
 local CloseBtn = Instance.new("TextButton")
