@@ -50,14 +50,39 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Déverrouillage des FPS à 999
-pcall(function()
-    if typeof(setfpscap) == "function" then
-        setfpscap(999)
-    elseif typeof(set_fps_cap) == "function" then
-        set_fps_cap(999)
+-- =========================================================================
+-- 🚀 DÉVERROUILLAGE ULTIME DES FPS (CAP 999) & OPTIMISATIONS HAUTES PERFORMANCES
+-- =========================================================================
+local function SetMaxFPS(val)
+    local targetFPS = val or 999
+    pcall(function()
+        if typeof(setfpscap) == "function" then
+            setfpscap(targetFPS)
+        end
+    end)
+    pcall(function()
+        if typeof(set_fps_cap) == "function" then
+            set_fps_cap(targetFPS)
+        end
+    end)
+    pcall(function()
+        if typeof(setfps) == "function" then
+            setfps(targetFPS)
+        end
+    end)
+end
+
+-- Déverrouillage immédiat à 999 FPS
+SetMaxFPS(999)
+
+-- Maintien actif et ré-application douce du cap à 999 FPS
+task.spawn(function()
+    while true do
+        task.wait(4)
+        SetMaxFPS(999)
     end
 end)
+
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
@@ -606,11 +631,16 @@ local function FlingPlayer(targetPlayer)
 
     local previousCFrame = root.CFrame
 
+    local charParts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(charParts, part)
+        end
+    end
+
     local noClipConn = RunService.Stepped:Connect(function()
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
+        for _, part in ipairs(charParts) do
+            part.CanCollide = false
         end
     end)
 
@@ -868,6 +898,22 @@ local function EquipGun()
     return nil
 end
 
+local function FindGunDropFast()
+    local direct = Workspace:FindFirstChild("GunDrop")
+    if direct and direct:IsA("BasePart") then
+        return direct
+    end
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Model") and child.Name ~= "Terrain" and not Players:GetPlayerFromCharacter(child) then
+            local inside = child:FindFirstChild("GunDrop")
+            if inside and inside:IsA("BasePart") then
+                return inside
+            end
+        end
+    end
+    return nil
+end
+
 local function GrabGun(gun)
     if not gun or not LocalPlayer.Character then return end
     local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -907,13 +953,22 @@ end
 -- ⚡ TRIGGERBOT SHERIFF (DÉTECTION DU CORPS PAR LE VISEUR -> TIR AUTOMATIQUE)
 -- -------------------------------------------------------------------------
 local lastTriggerShot = 0
+local triggerRayParams = RaycastParams.new()
+triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local cachedMouse = LocalPlayer:GetMouse()
+
 task.spawn(function()
     while true do
-        RunService.RenderStepped:Wait()
-        if State.TriggerBotSheriff and State.AimbotEnabled and IsPlayerInGame(LocalPlayer) then
+        if not State.TriggerBotSheriff or not State.AimbotEnabled or not IsPlayerInGame(LocalPlayer) then
+            task.wait(0.2)
+        else
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
-            if tool and IsGun(tool) then
+            if not tool or not IsGun(tool) then
+                task.wait(0.12)
+            else
+                RunService.RenderStepped:Wait()
                 local murderer = GetMurderer()
                 if murderer and murderer.Character and IsPlayerInGame(murderer) then
                     local mChar = murderer.Character
@@ -922,18 +977,15 @@ task.spawn(function()
                         local isAimedAtMurderer = false
 
                         -- 1. Détection par Mouse.Target (Curseur de la souris / Viseur classique)
-                        local mouse = LocalPlayer:GetMouse()
-                        if mouse and mouse.Target and mouse.Target:IsDescendantOf(mChar) then
+                        if cachedMouse and cachedMouse.Target and cachedMouse.Target:IsDescendantOf(mChar) then
                             isAimedAtMurderer = true
                         end
 
                         -- 2. Détection par Raycast au centre de la caméra (Vue première personne / Shift Lock)
                         if not isAimedAtMurderer and Camera then
-                            local centerRay = Camera:ViewportPointToRay(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-                            local params = RaycastParams.new()
-                            params.FilterType = Enum.RaycastFilterType.Exclude
-                            params.FilterDescendantsInstances = {char}
-                            local result = Workspace:Raycast(centerRay.Origin, centerRay.Direction * 1000, params)
+                            local centerRay = Camera:ViewportPointToRay(Camera.ViewportSize.X * 0.5, Camera.ViewportSize.Y * 0.5)
+                            triggerRayParams.FilterDescendantsInstances = {char}
+                            local result = Workspace:Raycast(centerRay.Origin, centerRay.Direction * 1000, triggerRayParams)
                             if result and result.Instance and result.Instance:IsDescendantOf(mChar) then
                                 isAimedAtMurderer = true
                             end
@@ -945,6 +997,8 @@ task.spawn(function()
                             tool:Activate()
                         end
                     end
+                else
+                    task.wait(0.2)
                 end
             end
         end
@@ -977,17 +1031,9 @@ local function TeleportToLobby()
 end
 
 local function TeleportToGunDrop()
-    local normalDrop = Workspace:FindFirstChild("GunDrop")
-    if normalDrop and normalDrop:IsA("BasePart") then
-        TeleportTo(normalDrop.CFrame + Vector3.new(0, 2, 0))
-        return
-    end
-
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-            TeleportTo(obj.CFrame + Vector3.new(0, 2, 0))
-            return
-        end
+    local gun = FindGunDropFast()
+    if gun then
+        TeleportTo(gun.CFrame + Vector3.new(0, 2, 0))
     end
 end
 
@@ -1027,7 +1073,7 @@ local function TeleportToActiveMap()
                     return true
                 end
             end
-            for _, part in ipairs(obj:GetDescendants()) do
+            for _, part in ipairs(obj:GetChildren()) do
                 if part:IsA("BasePart") and part.Position.Y < 300 and part.Size.Magnitude > 10 then
                     TeleportTo(part.CFrame + Vector3.new(0, 4, 0))
                     return true
@@ -1162,15 +1208,7 @@ end)
 task.spawn(function()
     while true do
         if State.AutoPickGun or State.GunESP then
-            local gun = Workspace:FindFirstChild("GunDrop")
-            if not gun then
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                        gun = obj
-                        break
-                    end
-                end
-            end
+            local gun = FindGunDropFast()
 
             if gun then
                 if State.GunESP and not gun:FindFirstChild("GunHighlight") then
@@ -1438,13 +1476,48 @@ Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.fromOffset(16, 0)
-Title.Size = UDim2.new(1, -100, 1, 0)
+Title.Size = UDim2.new(1, -190, 1, 0)
 Title.Font = Enum.Font.GothamBold
 Title.Text = "YANIS LE GOAT  💕  LOVE EDITION"
 Title.TextColor3 = Theme.TextPrimary
 Title.TextSize = 13
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
+
+local FpsBadge = Instance.new("TextLabel")
+FpsBadge.AnchorPoint = Vector2.new(1, 0.5)
+FpsBadge.Position = UDim2.new(1, -44, 0.5, 0)
+FpsBadge.Size = UDim2.fromOffset(80, 24)
+FpsBadge.BackgroundColor3 = Theme.BgInput
+FpsBadge.BorderSizePixel = 0
+FpsBadge.Font = Enum.Font.GothamBold
+FpsBadge.Text = "⚡ 999 FPS"
+FpsBadge.TextColor3 = Theme.Green
+FpsBadge.TextSize = 10
+FpsBadge.Parent = Header
+Instance.new("UICorner", FpsBadge).CornerRadius = UDim.new(0, 5)
+
+task.spawn(function()
+    local frames = 0
+    local lastCheck = tick()
+    RunService.RenderStepped:Connect(function()
+        frames = frames + 1
+        local now = tick()
+        if now - lastCheck >= 0.5 then
+            local currentFps = math.floor(frames / (now - lastCheck))
+            FpsBadge.Text = "⚡ " .. tostring(currentFps) .. " FPS"
+            if currentFps >= 120 then
+                FpsBadge.TextColor3 = Theme.Green
+            elseif currentFps >= 60 then
+                FpsBadge.TextColor3 = Theme.Yellow
+            else
+                FpsBadge.TextColor3 = Theme.Red
+            end
+            frames = 0
+            lastCheck = now
+        end
+    end)
+end)
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.AnchorPoint = Vector2.new(1, 0.5)
@@ -1590,11 +1663,13 @@ local TeleportPage = CreatePage("Teleport")
 local EmotesPage   = CreatePage("Emotes")
 local TradePage    = CreatePage("Trade")
 local MusicPage    = CreatePage("Music")
+local PerfPage     = CreatePage("Perf")
 
 local firstTab = AddTab("Sheriff", "💘", "Sheriff")
 AddTab("Murderer", "💔", "Murder")
 AddTab("ESP & Noms", "👁️", "Visuals")
 AddTab("Mouvement", "✨", "Movement")
+AddTab("FPS & Perf", "⚡", "Perf")
 AddTab("Fling Player", "💥", "Fling")
 AddTab("Téléports", "💌", "Teleport")
 AddTab("Zombie & Emotes", "🧟", "Emotes")
@@ -1733,16 +1808,9 @@ CreateToggle(SheriffPage, "ESP Gun (Afficher arme au sol)", true, function(v)
 end)
 
 CreateButton(SheriffPage, "Ramasser l'Arme au Sol Maintenant", "RAMASSER", function()
-    local normalDrop = Workspace:FindFirstChild("GunDrop")
-    if normalDrop then
-        GrabGun(normalDrop)
-    else
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                GrabGun(obj)
-                break
-            end
-        end
+    local gun = FindGunDropFast()
+    if gun then
+        GrabGun(gun)
     end
 end)
 
@@ -2382,8 +2450,17 @@ end
 
 task.spawn(function()
     while true do
-        pcall(UpdateTradeGUI)
-        task.wait(0.6)
+        local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local tradeGui = pGui and pGui:FindFirstChild("TradeGUI")
+        if tradeGui and tradeGui.Enabled then
+            pcall(UpdateTradeGUI)
+            task.wait(0.6)
+        else
+            if TradeSummaryCard and TradeSummaryCard.Visible then
+                TradeSummaryCard.Visible = false
+            end
+            task.wait(1.5)
+        end
     end
 end)
 
@@ -2455,7 +2532,65 @@ StopB.MouseButton1Click:Connect(function()
 end)
 
 -- =========================================================================
--- 10. LISTE D'AFFICHAGE DES JOUEURS (AVEC TRADE DIRECT, FLING & TP)
+-- 10. SECTION PERFORMANCE & BOOST FPS (CAP 999 & ANTI-LAG)
+-- =========================================================================
+local function EnableUltraFPSBoost()
+    pcall(function()
+        local Lighting = game:GetService("Lighting")
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("PostEffect") then
+                effect.Enabled = false
+            end
+        end
+    end)
+    pcall(function()
+        if settings and settings():GetService("RenderSettings") then
+            settings():GetService("RenderSettings").QualityLevel = Enum.QualityLevel.Level01
+        end
+    end)
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then
+                obj.Enabled = false
+            end
+        end
+    end)
+    SetMaxFPS(999)
+end
+
+CreateSection(PerfPage, "Optimisation FPS & Performances")
+
+CreateButton(PerfPage, "🚀 Déverrouiller FPS à 999 Maintenant", "FPS CAP 999", function()
+    SetMaxFPS(999)
+end, Theme.Green)
+
+CreateToggle(PerfPage, "⚡ Mode Boost FPS Ultime (Désactive Ombres & Particules)", false, function(v)
+    if v then
+        EnableUltraFPSBoost()
+    end
+end)
+
+CreateButton(PerfPage, "🧹 Nettoyer Particules & Effets Map", "BOOST RAPIDE", function()
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then
+                obj.Enabled = false
+            end
+        end
+    end)
+    SetMaxFPS(999)
+end, Theme.Yellow)
+
+CreateSection(PerfPage, "Sélecteur de Limite FPS")
+CreateButton(PerfPage, "Cap 999 FPS (Illimité Ultime)", "999 FPS", function() SetMaxFPS(999) end)
+CreateButton(PerfPage, "Cap 240 FPS (Écran Gaming 240Hz)", "240 FPS", function() SetMaxFPS(240) end)
+CreateButton(PerfPage, "Cap 144 FPS (Écran 144Hz)", "144 FPS", function() SetMaxFPS(144) end)
+CreateButton(PerfPage, "Cap 60 FPS (Écran Classique)", "60 FPS", function() SetMaxFPS(60) end)
+
+-- =========================================================================
+-- 11. LISTE D'AFFICHAGE DES JOUEURS (AVEC TRADE DIRECT, FLING & TP)
 -- =========================================================================
 local function CreatePlayerListGui()
     local parent = SafeParent
