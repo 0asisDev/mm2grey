@@ -601,81 +601,73 @@ local GetClosest = GetClosestTargetForMurder
 -- -------------------------------------------------------------------------
 -- 🎯 METAMETHOD HOOK SÉCURISÉ MOUSE.HIT / MOUSE.TARGET (ZERO POINT EXACT)
 -- -------------------------------------------------------------------------
+-- =========================================================================
+-- 🎯 HOOK MOUSE.HIT / MOUSE.TARGET (ZERO POINT EXACT - SÉCURISÉ)
+-- =========================================================================
 pcall(function()
-    local function HandleMouseIndex(self, prop, oldIndex)
+    local mt = getrawmetatable(game)
+    local oldIndex = mt.__index
+    setreadonly(mt, false)
+
+    mt.__index = newcclosure(function(self, prop)
         if not checkcaller() and typeof(self) == "Instance" and self:IsA("Mouse") then
             local char = LocalPlayer.Character
-            if char and State.AimbotEnabled ~= false then
-                -- 1. Silent Aim Shérif (Gun) - Zero Point Universel
-                local hasGun = char:FindFirstChild("Gun") or (function()
-                    for _, t in ipairs(char:GetChildren()) do
-                        if t:IsA("Tool") and IsGun(t) then return t end
+            if char then
+                -- 1. Sheriff : Silent Aim sur le Murderer (Zero Point exact)
+                if State.SheriffSilentAim then
+                    local gun = char:FindFirstChild("Gun")
+                    if not gun then
+                        for _, t in ipairs(char:GetChildren()) do
+                            if t:IsA("Tool") and IsGun(t) then gun = t; break end
+                        end
                     end
-                    return nil
-                end)()
-
-                if (State.SilentAimSheriff ~= false and State.SheriffSilentAim ~= false) and hasGun then
-                    local target = GetMurderer()
-                    if target and target.Character then
-                        local tPart = target.Character:FindFirstChild(State.TargetPart or "HumanoidRootPart")
-                            or target.Character:FindFirstChild("HumanoidRootPart")
-                            or target.Character:FindFirstChild("Head")
-                        if tPart then
-                            local predicted = tPart.Position
-                            if State.PredictMovement and (tPart.AssemblyLinearVelocity or tPart.Velocity) then
-                                local vel = tPart.AssemblyLinearVelocity or tPart.Velocity or Vector3.zero
-                                predicted = predicted + (vel * 0.05)
+                    if gun then
+                        local target = GetMurderer()
+                        if target and target.Character then
+                            local tPart = target.Character:FindFirstChild(State.TargetPart)
+                                or target.Character:FindFirstChild("HumanoidRootPart")
+                            if tPart then
+                                local predicted = tPart.Position
+                                if State.PredictMovement and tPart.AssemblyLinearVelocity then
+                                    predicted = predicted + (tPart.AssemblyLinearVelocity * 0.05)
+                                end
+                                if prop == "Hit" then return CFrame.new(predicted) end
+                                if prop == "Target" then return tPart end
                             end
-                            if prop == "Hit" then return CFrame.new(predicted) end
-                            if prop == "Target" then return tPart end
                         end
                     end
                 end
 
-                -- 2. Silent Aim Murderer (Knife) - Zero Point Universel
-                local hasKnife = char:FindFirstChild("Knife") or (function()
-                    for _, t in ipairs(char:GetChildren()) do
-                        if t:IsA("Tool") and IsKnife(t) then return t end
+                -- 2. Murderer : Silent Aim sur la cible la plus proche (Zero Point exact)
+                if State.MurderSilentAim then
+                    local knife = char:FindFirstChild("Knife")
+                    if not knife then
+                        for _, t in ipairs(char:GetChildren()) do
+                            if t:IsA("Tool") and IsKnife(t) then knife = t; break end
+                        end
                     end
-                    return nil
-                end)()
-
-                if (State.SilentAimMurder ~= false and State.MurderSilentAim ~= false) and hasKnife then
-                    local target = State.TargetPlayer or GetClosestTargetForMurder()
-                    if target and target.Character then
-                        local tPart = target.Character:FindFirstChild(State.TargetPart or "HumanoidRootPart")
-                            or target.Character:FindFirstChild("HumanoidRootPart")
-                            or target.Character:FindFirstChild("Head")
-                        if tPart then
-                            local predicted = tPart.Position
-                            if State.PredictMovement and (tPart.AssemblyLinearVelocity or tPart.Velocity) then
-                                local vel = tPart.AssemblyLinearVelocity or tPart.Velocity or Vector3.zero
-                                predicted = predicted + (vel * 0.05)
+                    if knife then
+                        local target = State.TargetPlayer or GetClosestTargetForMurder()
+                        if target and target.Character then
+                            local tPart = target.Character:FindFirstChild(State.TargetPart)
+                                or target.Character:FindFirstChild("HumanoidRootPart")
+                            if tPart then
+                                local predicted = tPart.Position
+                                if State.PredictMovement and tPart.AssemblyLinearVelocity then
+                                    predicted = predicted + (tPart.AssemblyLinearVelocity * 0.05)
+                                end
+                                if prop == "Hit" then return CFrame.new(predicted) end
+                                if prop == "Target" then return tPart end
                             end
-                            if prop == "Hit" then return CFrame.new(predicted) end
-                            if prop == "Target" then return tPart end
                         end
                     end
                 end
             end
         end
         return oldIndex(self, prop)
-    end
+    end)
 
-    if typeof(hookmetamethod) == "function" then
-        local oldIndex
-        oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, prop)
-            return HandleMouseIndex(self, prop, oldIndex)
-        end))
-    elseif typeof(getrawmetatable) == "function" then
-        local mt = getrawmetatable(game)
-        local oldIndex = mt.__index
-        if typeof(setreadonly) == "function" then setreadonly(mt, false) end
-        mt.__index = newcclosure(function(self, prop)
-            return HandleMouseIndex(self, prop, oldIndex)
-        end)
-        if typeof(setreadonly) == "function" then setreadonly(mt, true) end
-    end
+    setreadonly(mt, true)
 end)
 
 -- -------------------------------------------------------------------------
@@ -727,12 +719,14 @@ end
 -- -------------------------------------------------------------------------
 -- Murderer : lancer le couteau sur le joueur le plus proche
 local throwDebounce = false
+
 local function ThrowKnifeSilent(customTarget)
     if throwDebounce then return end
 
     local char = LocalPlayer.Character
     if not char then return end
 
+    -- Chercher le couteau (nom exact "Knife" puis backpack, Zero Point exact)
     local knife = char:FindFirstChild("Knife")
     if not knife then
         local bp = LocalPlayer:FindFirstChild("Backpack")
@@ -742,21 +736,24 @@ local function ThrowKnifeSilent(customTarget)
             task.wait(0.04)
         end
     end
+    -- Fallback : n'importe quel couteau (skin custom)
     if not knife then
-        local eq = char:FindFirstChildOfClass("Tool")
-        if eq and IsKnife(eq) then knife = eq end
+        for _, t in ipairs(char:GetChildren()) do
+            if t:IsA("Tool") and IsKnife(t) then knife = t; break end
+        end
     end
     if not knife then return end
 
-    local target = customTarget or GetClosestTargetForMurder()
+    local target = customTarget or State.TargetPlayer or GetClosestTargetForMurder()
     if not target or not target.Character then return end
-    local tRoot = target.Character:FindFirstChild(State.TargetPart or "HumanoidRootPart")
+    local tRoot = target.Character:FindFirstChild(State.TargetPart)
         or target.Character:FindFirstChild("HumanoidRootPart")
         or target.Character:FindFirstChild("Head")
     if not tRoot then return end
 
     throwDebounce = true
 
+    -- Recherche automatique du RemoteEvent KnifeThrown (Zero Point exact)
     local knifeRemote = nil
     local events = knife:FindFirstChild("Events")
     if events then
@@ -771,11 +768,10 @@ local function ThrowKnifeSilent(customTarget)
         end
     end
 
-    local handle = knife:FindFirstChild("Handle") or knife:FindFirstChildWhichIsA("BasePart") or (char:FindFirstChild("HumanoidRootPart"))
+    local handle = knife:FindFirstChild("Handle") or knife:FindFirstChildWhichIsA("BasePart") or char:FindFirstChild("HumanoidRootPart")
     local predictedPos = tRoot.Position
-    if State.PredictMovement and (tRoot.AssemblyLinearVelocity or tRoot.Velocity) then
-        local vel = tRoot.AssemblyLinearVelocity or tRoot.Velocity or Vector3.zero
-        predictedPos = predictedPos + (vel * 0.05)
+    if State.PredictMovement and tRoot.AssemblyLinearVelocity then
+        predictedPos = predictedPos + (tRoot.AssemblyLinearVelocity * 0.05)
     end
 
     if knifeRemote and handle then
@@ -803,22 +799,21 @@ local function FaceTarget()
     end
 end
 
--- Raccourci touche [E] pour lancer le couteau sur la cible (Zero Point Exact)
+-- Touche [E] pour lancer le couteau sur la cible (Zero Point exact)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.E then
         local char = LocalPlayer.Character
         local bp = LocalPlayer:FindFirstChild("Backpack")
-        local hasKnife = (char and (char:FindFirstChild("Knife") or (char:FindFirstChildOfClass("Tool") and IsKnife(char:FindFirstChildOfClass("Tool")))))
-            or (bp and (bp:FindFirstChild("Knife") or (function() for _, t in ipairs(bp:GetChildren()) do if IsKnife(t) then return true end end end)()))
-        if hasKnife and State.SilentAimMurder ~= false and State.AimbotEnabled ~= false then
-            ThrowKnifeSilent()
+        local hasKnife = (char and char:FindFirstChild("Knife")) or (bp and bp:FindFirstChild("Knife"))
+        if not hasKnife and char then
+            -- Fallback skins custom
+            for _, t in ipairs(char:GetChildren()) do
+                if t:IsA("Tool") and IsKnife(t) then hasKnife = true; break end
+            end
         end
-    elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local char = LocalPlayer.Character
-        local hasKnife = char and (char:FindFirstChild("Knife") or (char:FindFirstChildOfClass("Tool") and IsKnife(char:FindFirstChildOfClass("Tool"))))
-        if hasKnife and State.SilentAimMurder ~= false and State.AimbotEnabled ~= false then
-            FaceTarget()
+        if hasKnife and State.MurderSilentAim then
+            ThrowKnifeSilent()
         end
     end
 end)
@@ -837,10 +832,8 @@ local function HookNativeThrowButtons()
         if btn and btn:IsA("GuiButton") and not btn:GetAttribute("HookedSilent") then
             btn:SetAttribute("HookedSilent", true)
             btn.MouseButton1Click:Connect(function()
-                if State.AimbotEnabled ~= false and (State.SilentAimMurder ~= false and State.MurderSilentAim ~= false) then
-                    task.spawn(function()
-                        ThrowKnifeSilent()
-                    end)
+                if State.MurderSilentAim then
+                    task.spawn(ThrowKnifeSilent)
                 end
             end)
         end
@@ -935,12 +928,14 @@ end
 -- 💥 TIR SILENT AIM SHÉRIF (ZERO POINT EXACT)
 -- -------------------------------------------------------------------------
 local shootDebounce = false
+
 local function ShootGunSilent(customTarget)
     if shootDebounce then return end
 
     local char = LocalPlayer.Character
     if not char then return end
 
+    -- Chercher le gun (nom exact "Gun" puis backpack, Zero Point exact)
     local gun = char:FindFirstChild("Gun")
     if not gun then
         local bp = LocalPlayer:FindFirstChild("Backpack")
@@ -950,21 +945,24 @@ local function ShootGunSilent(customTarget)
             task.wait(0.04)
         end
     end
+    -- Fallback : n'importe quel gun (skin custom)
     if not gun then
-        local eq = char:FindFirstChildOfClass("Tool")
-        if eq and IsGun(eq) then gun = eq end
+        for _, t in ipairs(char:GetChildren()) do
+            if t:IsA("Tool") and IsGun(t) then gun = t; break end
+        end
     end
     if not gun then return end
 
     local target = customTarget or GetMurderer()
     if not target or not target.Character then return end
-    local tRoot = target.Character:FindFirstChild(State.TargetPart or "HumanoidRootPart")
+    local tRoot = target.Character:FindFirstChild(State.TargetPart)
         or target.Character:FindFirstChild("HumanoidRootPart")
         or target.Character:FindFirstChild("Head")
     if not tRoot then return end
 
     shootDebounce = true
 
+    -- Recherche du RemoteEvent Shoot (Zero Point exact)
     local shootRemote = nil
     local events = gun:FindFirstChild("Events") or gun:FindFirstChild("GunClient")
     if events then
@@ -980,9 +978,8 @@ local function ShootGunSilent(customTarget)
     end
 
     local predictedPos = tRoot.Position
-    if State.PredictMovement and (tRoot.AssemblyLinearVelocity or tRoot.Velocity) then
-        local vel = tRoot.AssemblyLinearVelocity or tRoot.Velocity or Vector3.zero
-        predictedPos = predictedPos + (vel * 0.05)
+    if State.PredictMovement and tRoot.AssemblyLinearVelocity then
+        predictedPos = predictedPos + (tRoot.AssemblyLinearVelocity * 0.05)
     end
 
     if shootRemote then
@@ -1012,7 +1009,7 @@ local cachedMouse = LocalPlayer:GetMouse()
 
 task.spawn(function()
     while true do
-        if not State.TriggerBotSheriff or not State.AimbotEnabled or not IsPlayerInGame(LocalPlayer) then
+        if not State.TriggerBotSheriff or not IsPlayerInGame(LocalPlayer) then
             task.wait(0.2)
         else
             local char = LocalPlayer.Character
@@ -1146,15 +1143,18 @@ end
 
 -- -------------------------------------------------------------------------
 -- 👁️ ESP ROLES & NOMS (INACTIF AU LOBBY, 100% ACTIF EN MATCH)
--- -------------------------------------------------------------------------
+-- =========================================================================
+-- 👁️ ESP RÔLES & NOMS (ZERO POINT EXACT - IN-GAME UNIQUEMENT, LOBBY CLEAN)
+-- =========================================================================
 local function ClearAllESP()
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
-            local hl = p.Character:FindFirstChild("ZP_Highlight") or p.Character:FindFirstChild("MM2_Highlight")
+            local hl = p.Character:FindFirstChild("ZP_Highlight")
             if hl then hl:Destroy() end
+
             local head = p.Character:FindFirstChild("Head")
             if head then
-                local tag = head:FindFirstChild("ZP_NameTag") or head:FindFirstChild("MM2_NameTag")
+                local tag = head:FindFirstChild("ZP_NameTag")
                 if tag then tag:Destroy() end
             end
         end
@@ -1164,26 +1164,39 @@ end
 task.spawn(function()
     while true do
         task.wait(0.4)
-        if not (Cfg.RoleESP or Cfg.NameTagsESP or State.RoleESP or State.NameTagsESP) or not IsPlayerInGame(LP) then
+
+        -- Si TOI tu es au lobby : tout nettoyer (Zero Point exact)
+        if not (State.RoleESP or State.NameTagsESP) or not IsPlayerInGame(LocalPlayer) then
             ClearAllESP()
         else
             for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LP and p.Character then
+                if p ~= LocalPlayer and p.Character then
                     local char = p.Character
                     local hrp = char:FindFirstChild("HumanoidRootPart")
                     local head = char:FindFirstChild("Head")
-                    if not IsPlayerInGame(p) then
-                        local hl = char:FindFirstChild("ZP_Highlight") or char:FindFirstChild("MM2_Highlight")
+                    local inGame = IsPlayerInGame(p)
+
+                    if not inGame then
+                        -- Enlever ESP pour ce joueur car au lobby
+                        local hl = char:FindFirstChild("ZP_Highlight")
                         if hl then hl:Destroy() end
                         if head then
-                            local tag = head:FindFirstChild("ZP_NameTag") or head:FindFirstChild("MM2_NameTag")
+                            local tag = head:FindFirstChild("ZP_NameTag")
                             if tag then tag:Destroy() end
                         end
                     else
                         local role = GetPlayerRole(p)
-                        local color = Colors[role] or Color3.fromRGB(80, 220, 100)
 
-                        if (Cfg.RoleESP and State.RoleESP ~= false) then
+                        -- Couleurs Zero Point exactes: Vert=Innocent, Rouge=Murderer, Bleu=Sheriff
+                        local color = Theme.Green
+                        if role == "Murderer" then
+                            color = Theme.Red
+                        elseif role == "Sheriff" then
+                            color = Theme.Blue
+                        end
+
+                        -- 1. Highlight Chams (Zero Point exact)
+                        if State.RoleESP then
                             local hl = char:FindFirstChild("ZP_Highlight")
                             if not hl then
                                 hl = Instance.new("Highlight")
@@ -1197,13 +1210,15 @@ task.spawn(function()
                             hl.Adornee = char
                             hl.Enabled = true
                         else
-                            local hl = char:FindFirstChild("ZP_Highlight") or char:FindFirstChild("MM2_Highlight")
+                            local hl = char:FindFirstChild("ZP_Highlight")
                             if hl then hl:Destroy() end
                         end
 
-                        if (Cfg.NameTagsESP and State.NameTagsESP ~= false) and head and hrp then
-                            local myHrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                        -- 2. NameTag BillboardGui (Zero Point exact)
+                        if State.NameTagsESP and head and hrp then
+                            local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                             local dist = myHrp and math.floor((myHrp.Position - hrp.Position).Magnitude) or 0
+
                             local tag = head:FindFirstChild("ZP_NameTag")
                             if not tag then
                                 tag = Instance.new("BillboardGui")
@@ -1212,6 +1227,7 @@ task.spawn(function()
                                 tag.StudsOffset = Vector3.new(0, 2.5, 0)
                                 tag.AlwaysOnTop = true
                                 tag.Parent = head
+
                                 local lbl = Instance.new("TextLabel")
                                 lbl.Name = "TagLabel"
                                 lbl.Size = UDim2.new(1, 0, 1, 0)
@@ -1221,14 +1237,17 @@ task.spawn(function()
                                 lbl.Parent = tag
                                 Instance.new("UIStroke", lbl).Thickness = 1.2
                             end
+
                             local lbl = tag:FindFirstChild("TagLabel")
                             if lbl then
                                 lbl.TextColor3 = color
                                 lbl.Text = string.format("%s\n[%s | %dm]", p.DisplayName or p.Name, role:upper(), dist)
                             end
-                        elseif head then
-                            local tag = head:FindFirstChild("ZP_NameTag") or head:FindFirstChild("MM2_NameTag")
-                            if tag then tag:Destroy() end
+                        else
+                            if head then
+                                local tag = head:FindFirstChild("ZP_NameTag")
+                                if tag then tag:Destroy() end
+                            end
                         end
                     end
                 end
@@ -1236,6 +1255,7 @@ task.spawn(function()
         end
     end
 end)
+
 
 -- -------------------------------------------------------------------------
 -- 🔫 AUTO PICK DU PISTOLET AU SOL (ZERO POINT EXACT : 0.12s SNAP & RETURN)
@@ -2117,18 +2137,12 @@ CreateSection(VisualsPage, "Options ESP & Chams")
 
 CreateToggle(VisualsPage, "ESP Noms & Rôles 3D (En Jeu Uniquement)", true, function(v)
     State.NameTagsESP = v
-    Cfg.NameTagsESP = v
-    if not v then
-        ClearAllESP()
-    end
+    if not v then ClearAllESP() end
 end)
 
 CreateToggle(VisualsPage, "ESP Rôles Chams (Innocent Vert / Sheriff Bleu / Murder Rouge)", true, function(v)
     State.RoleESP = v
-    Cfg.RoleESP = v
-    if not v then
-        ClearAllESP()
-    end
+    if not v then ClearAllESP() end
 end)
 
 -- =========================================================================
@@ -2175,7 +2189,6 @@ local function AddJumpBtn(txt, pwr, xPos, width)
 
     b.MouseButton1Click:Connect(function()
         State.JumpPower = pwr
-        Cfg.JumpPower = pwr
         JumpTitle.Text = "Puissance Saut : " .. tostring(State.JumpPower)
         if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
             local hum = LP.Character:FindFirstChildOfClass("Humanoid")
@@ -2192,15 +2205,15 @@ AddJumpBtn("Mega (300)", 300, 0.75, 0.25)
 
 LP.CharacterAdded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid", 5)
-    if hum and (Cfg.HighJump or State.HighJump) then
+    if hum and State.HighJump then
         hum.UseJumpPower = true
-        hum.JumpPower = Cfg.JumpPower or State.JumpPower or 95
+        hum.JumpPower = State.JumpPower or 95
     end
 end)
 
--- Noclip en continu sur Stepped
+-- Noclip en continu sur Stepped (Zero Point exact)
 RunService.Stepped:Connect(function()
-    if (Cfg.Noclip or State.Noclip) and LP.Character then
+    if State.Noclip and LP.Character then
         for _, part in ipairs(LP.Character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -2209,13 +2222,13 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- High Jump & Saut Infini sur JumpRequest
+-- High Jump & Saut Infini sur JumpRequest (Zero Point exact)
 UIS.JumpRequest:Connect(function()
-    if (Cfg.HighJump or State.HighJump) and LP.Character then
+    if State.HighJump and LP.Character then
         local hum = LP.Character:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.UseJumpPower = true
-            hum.JumpPower = Cfg.JumpPower or State.JumpPower or 95
+            hum.JumpPower = State.JumpPower or 95
         end
     end
     if State.InfJump and LP.Character then
@@ -2228,12 +2241,10 @@ end)
 
 CreateToggle(MovementPage, "Noclip (Traverser les murs)", false, function(v)
     State.Noclip = v
-    Cfg.Noclip = v
 end)
 
 CreateToggle(MovementPage, "High Jump (Super Saut 95)", true, function(v)
     State.HighJump = v
-    Cfg.HighJump = v
 end)
 
 CreateToggle(MovementPage, "Saut Infini (Infinite Jump)", false, function(v)
