@@ -38,6 +38,33 @@ local Workspace        = game:GetService("Workspace")
 local LocalPlayer      = Players.LocalPlayer
 local DiscordInvite    = "https://discord.gg/Nk44e68bmn"
 
+-- =========================================================================
+-- ⚡ SAUT INFINI UNIVERSEL & INSTANTANÉ (YANIS LOVE EDITION)
+-- =========================================================================
+_G.InfJump = true
+
+pcall(function()
+    local UIS = game:GetService("UserInputService")
+    UIS.JumpRequest:Connect(function()
+        if not _G.InfJump then return end
+        local c = game.Players.LocalPlayer.Character
+        if c and c:FindFirstChildOfClass("Humanoid") and c:FindFirstChild("HumanoidRootPart") then
+            c:FindFirstChildOfClass("Humanoid"):ChangeState(3)
+            c.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(c.HumanoidRootPart.AssemblyLinearVelocity.X, 55, c.HumanoidRootPart.AssemblyLinearVelocity.Z)
+        end
+    end)
+
+    -- Touche [J] pour Activer / Désactiver rapidement
+    UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.J then
+            _G.InfJump = not _G.InfJump
+            if MM2State then MM2State.InfJump = _G.InfJump end
+            print("[Infinite Jump] Statut :", _G.InfJump and "ACTIVÉ (ON)" or "DÉSACTIVÉ (OFF)")
+        end
+    end)
+end)
+
 local Theme = {
     Background     = Color3.fromRGB(16, 12, 22),
     Sidebar        = Color3.fromRGB(12, 8, 16),
@@ -99,6 +126,9 @@ local MM2State = {
     GunESP           = true,  -- Highlight Gun au sol
     AutoPickGun      = false, -- Ramassage auto du Gun
     HighJump         = false, -- Saut réglable
+    InfJump          = true, -- Saut Infini (MM2 Grey Hub)
+    ActivePack       = nil,   -- Demarche active
+    AntiFling        = false, -- Bouclier Anti-Fling & protection collisions
     JumpPower        = 95,
     Noclip           = false,
     TradeOverlay     = true,  -- Affichage des valeurs en trade
@@ -110,29 +140,572 @@ local MM2State = {
 -- BASE DE DONNÉES TRADE VALUES MM2
 -- =========================================================================
 local ItemValues = {
-    ["harvester"] = 1150, ["corrupt"] = 850, ["bat"] = 720, ["chroma candleflame"] = 520,
-    ["swirly axe"] = 400, ["swirly gun"] = 320, ["chroma darkbringer"] = 290, ["chroma lightbringer"] = 280,
-    ["chroma gemstone"] = 210, ["elderwood blade"] = 210, ["candy"] = 180, ["sugar"] = 175,
-    ["chroma luger"] = 170, ["elderwood scythe"] = 165, ["chroma heat"] = 160, ["chroma fang"] = 150,
-    ["chroma tides"] = 135, ["icebreaker"] = 130, ["chroma laser"] = 130, ["heartblade"] = 125,
-    ["chroma slasher"] = 125, ["iceblaster"] = 120, ["chroma deathshard"] = 120, ["chroma shark"] = 115,
-    ["swirly blade"] = 110, ["hallowscythe"] = 100, ["chroma saw"] = 90, ["chroma seer"] = 80,
-    ["luger"] = 75, ["chroma gingerblade"] = 75, ["chroma boneblade"] = 70, ["darkbringer"] = 70,
-    ["lightbringer"] = 65, ["hallowgun"] = 60, ["amerilaser"] = 50, ["oldglory"] = 50,
-    ["pixel"] = 45, ["red luger"] = 45, ["green luger"] = 45, ["laser"] = 40, ["ginger luger"] = 40,
-    ["slasher"] = 35, ["heat"] = 35, ["battleaxe ii"] = 35, ["tides"] = 30, ["ice dragon"] = 30,
-    ["fang"] = 28, ["deathshard"] = 25, ["shark"] = 25, ["saw"] = 15, ["seer"] = 5,
+    ["3"] = 7,
+    ["alex"] = 4,
+    ["alien set"] = 3950,
+    ["alienbeam"] = 2050,
+    ["america"] = 7,
+    ["amerilaser"] = 22,
+    ["apocalypse gun"] = 3,
+    ["arctic gun"] = 10,
+    ["asteroid"] = 2,
+    ["aurora gun"] = 1,
+    ["aurora knife"] = 7,
+    ["aurora set legend"] = 48,
+    ["aurora set rare"] = 8,
+    ["australis"] = 140,
+    ["badger"] = 1,
+    ["bat"] = 125,
+    ["bat set"] = 158,
+    ["bats"] = 2,
+    ["bats 2020"] = 3,
+    ["bats gun hallows2018"] = 1,
+    ["bats knife hallows2018"] = 240,
+    ["bats set"] = 241,
+    ["battleaxe"] = 12,
+    ["battleaxe ii"] = 17,
+    ["batwing"] = 42,
+    ["bauble"] = 675,
+    ["bauble set"] = 750,
+    ["beach"] = 35,
+    ["beach set"] = 180,
+    ["beachy"] = 90,
+    ["bioblade"] = 8,
+    ["black cat"] = 75,
+    ["black luger"] = 1000000,
+    ["blaster"] = 17,
+    ["blizzard"] = 305,
+    ["blizzard set"] = 610,
+    ["blood"] = 8,
+    ["bloom"] = 400,
+    ["bloom set"] = 810,
+    ["blossom"] = 1370,
+    ["blue elite"] = 3,
+    ["blue papers"] = 2,
+    ["blue pumpkin hallows2018"] = 220,
+    ["blue pumpkin hallows2019"] = 1,
+    ["blue pumpkin hallows2020"] = 7,
+    ["blue scratch"] = 2,
+    ["blue seer"] = 3,
+    ["boneblade"] = 7,
+    ["bones"] = 210,
+    ["borealis"] = 145,
+    ["borealis set"] = 285,
+    ["bow set"] = 410,
+    ["box of fertilizer"] = 2,
+    ["brains"] = 135,
+    ["branches"] = 50,
+    ["bringer set"] = 65,
+    ["broken"] = 7,
+    ["bunnies"] = 5,
+    ["candleflame"] = 33,
+    ["candy"] = 80,
+    ["candy corn 2019"] = 12,
+    ["candy set"] = 112,
+    ["candy swirl gun"] = 2,
+    ["candy swirl knife"] = 1,
+    ["candy swirl set"] = 3,
+    ["candycorn 2017"] = 25,
+    ["cane knife xmas2018"] = 525,
+    ["cavern gun"] = 1,
+    ["cavern knife"] = 7,
+    ["cavern set"] = 8,
+    ["celestial"] = 2250,
+    ["celestial set"] = 4950,
+    ["chill"] = 10,
+    ["chilly"] = 3,
+    ["chroma alien set"] = 38000,
+    ["chroma alienbeam"] = 24000,
+    ["chroma bauble"] = 33000,
+    ["chroma bauble set"] = 34825,
+    ["chroma beach set"] = 2450,
+    ["chroma beachy"] = 1200,
+    ["chroma blizzard"] = 5500,
+    ["chroma blizzard set"] = 9750,
+    ["chroma boneblade"] = 22,
+    ["chroma bringer set"] = 125,
+    ["chroma candleflame"] = 40,
+    ["chroma constellation"] = 30000,
+    ["chroma cookiecane"] = 32,
+    ["chroma darkbringer"] = 65,
+    ["chroma deathshard"] = 35,
+    ["chroma elderwood blade"] = 37,
+    ["chroma ever set"] = 97000,
+    ["chroma evergreen"] = 41000,
+    ["chroma evergun"] = 56000,
+    ["chroma fang"] = 32,
+    ["chroma fire bat"] = 3,
+    ["chroma fire bear"] = 3,
+    ["chroma fire bunny"] = 3,
+    ["chroma fire cat"] = 3,
+    ["chroma fire dog"] = 3,
+    ["chroma fire fox"] = 3,
+    ["chroma fire pig"] = 3,
+    ["chroma gemstone"] = 32,
+    ["chroma gingerblade"] = 27,
+    ["chroma heart wand"] = 4200,
+    ["chroma heat"] = 28,
+    ["chroma icecream"] = 1700,
+    ["chroma laser"] = 40,
+    ["chroma lightbringer"] = 60,
+    ["chroma luger"] = 50,
+    ["chroma ornament"] = 1825,
+    ["chroma pet set"] = 21,
+    ["chroma raygun"] = 14000,
+    ["chroma sands"] = 1250,
+    ["chroma saw"] = 23,
+    ["chroma seer"] = 28,
+    ["chroma shark"] = 32,
+    ["chroma slasher"] = 32,
+    ["chroma slasher set"] = 72,
+    ["chroma snow dagger"] = 2350,
+    ["chroma snow set"] = 10100,
+    ["chroma snowcannon"] = 7750,
+    ["chroma snowstorm"] = 4250,
+    ["chroma sun set"] = 18500,
+    ["chroma sunrise"] = 10750,
+    ["chroma sunset"] = 7750,
+    ["chroma sweet"] = 1725,
+    ["chroma sweet set"] = 3500,
+    ["chroma swirly gun"] = 35,
+    ["chroma tides"] = 27,
+    ["chroma travelers gun"] = 145000,
+    ["chroma treat"] = 1775,
+    ["chroma vampires gun"] = 29000,
+    ["chroma watergun"] = 2500,
+    ["chroma weapon set"] = 535,
+    ["chromatic knife"] = 1,
+    ["clockwork"] = 10,
+    ["coal knife xmas2018"] = 15,
+    ["colored seer set"] = 16,
+    ["combat ii"] = 10,
+    ["constellation"] = 2700,
+    ["cookie knife"] = 1,
+    ["cookie set"] = 25,
+    ["cookieblade"] = 3,
+    ["cookiecane"] = 13,
+    ["corl"] = 4,
+    ["corrupt"] = 350,
+    ["corrupt set"] = 368,
+    ["cotton candy"] = 35,
+    ["cowboy"] = 4,
+    ["dark set"] = 3575,
+    ["dark set rare"] = 71,
+    ["darkbringer"] = 33,
+    ["darkgun"] = 1,
+    ["darkknife"] = 70,
+    ["darkshot"] = 1800,
+    ["darksword"] = 1775,
+    ["deathshard"] = 13,
+    ["denis"] = 4,
+    ["dogey"] = 150,
+    ["dungeon"] = 130,
+    ["ecto"] = 25,
+    ["eggblade"] = 5,
+    ["elderwood blade"] = 33,
+    ["elderwood revolver"] = 33,
+    ["elderwood scythe"] = 38,
+    ["elderwood set"] = 71,
+    ["elf"] = 25,
+    ["elf 2018"] = 20,
+    ["elf 2019"] = 625,
+    ["elf knife"] = 15,
+    ["energized gun"] = 2,
+    ["eternal"] = 7,
+    ["eternal ii"] = 7,
+    ["eternal iii"] = 8,
+    ["eternal iv"] = 8,
+    ["eternal set"] = 43,
+    ["eternalcane"] = 13,
+    ["eternalcane set"] = 26,
+    ["euro"] = 4,
+    ["ever set"] = 5975,
+    ["evergreen"] = 2525,
+    ["evergun"] = 3450,
+    ["eye set"] = 6,
+    ["eyeball"] = 3,
+    ["fairy"] = 3,
+    ["fang"] = 10,
+    ["flames"] = 5,
+    ["flora"] = 410,
+    ["floral knife"] = 10,
+    ["flowerwood"] = 255,
+    ["flowerwood gun"] = 260,
+    ["flowerwood knife"] = 75,
+    ["flowerwood set"] = 515,
+    ["frostbite"] = 7,
+    ["frosted knife"] = 30,
+    ["frostfade knife"] = 2,
+    ["frostsaber"] = 10,
+    ["frozen gun"] = 3,
+    ["frozen knife"] = 1,
+    ["frozen set"] = 4,
+    ["full bringer set"] = 190,
+    ["full chroma set"] = 555,
+    ["full colored seer set"] = 44,
+    ["full elderwood set"] = 104,
+    ["full elite set"] = 6,
+    ["full ice set"] = 258,
+    ["full luger set"] = 156,
+    ["full swirly set"] = 68,
+    ["gemstone"] = 15,
+    ["ghastly gun"] = 7,
+    ["ghost"] = 8,
+    ["ghost gun"] = 2,
+    ["ghost knife"] = 5,
+    ["ghost set"] = 7,
+    ["ghostblade"] = 7,
+    ["ghostfire"] = 10,
+    ["ghosty"] = 3,
+    ["ghoulish"] = 90,
+    ["gifts knife"] = 95,
+    ["ginger gun"] = 5,
+    ["ginger luger"] = 17,
+    ["ginger set godly"] = 30,
+    ["gingerblade"] = 13,
+    ["gingerbread"] = 1,
+    ["gingerbread gun xmas2019"] = 1,
+    ["gingerbread gun xmas2020"] = 3,
+    ["gingerbread knife xmas2019"] = 85,
+    ["gingerbread knife xmas2020"] = 10,
+    ["gingerbread set xmas2019"] = 86,
+    ["gingerbread set xmas2020"] = 13,
+    ["gingermint"] = 12,
+    ["gingerscope"] = 16250,
+    ["glitch1"] = 65,
+    ["glitch2"] = 35,
+    ["gold papers"] = 2,
+    ["golden"] = 4,
+    ["gothic gun"] = 7,
+    ["grave gun"] = 1,
+    ["grave knife"] = 1,
+    ["grave set"] = 2,
+    ["green elite"] = 3,
+    ["green luger"] = 23,
+    ["green marble"] = 2,
+    ["green papers"] = 2,
+    ["green pumpkin hallows2018"] = 60,
+    ["green pumpkin hallows2019"] = 3,
+    ["green pumpkin hallows2020"] = 12,
+    ["green pumpkin hallows2021"] = 10,
+    ["grind"] = 2,
+    ["hallow set"] = 50,
+    ["hallowgun"] = 20,
+    ["hallows blade"] = 8,
+    ["hallows edge"] = 8,
+    ["hallowscythe"] = 30,
+    ["handsaw"] = 8,
+    ["harvester"] = 250,
+    ["haunted gun"] = 1,
+    ["haunted knife"] = 1,
+    ["haunted set"] = 2,
+    ["hazard gun"] = 5,
+    ["heart wand"] = 340,
+    ["heartblade"] = 65,
+    ["heat"] = 10,
+    ["holly gun"] = 1,
+    ["ice dragon"] = 7,
+    ["ice set"] = 98,
+    ["ice shard"] = 7,
+    ["icebeam"] = 18,
+    ["iceblaster"] = 33,
+    ["icebreaker"] = 65,
+    ["icecracker"] = 1,
+    ["icecream"] = 155,
+    ["icedriller"] = 5,
+    ["icedriller set"] = 6,
+    ["iceflake"] = 15,
+    ["iceflake set"] = 33,
+    ["icepiercer"] = 160,
+    ["icewing"] = 13,
+    ["icicles gun"] = 3,
+    ["indy"] = 2,
+    ["infected gun"] = 3,
+    ["jack"] = 3,
+    ["jd"] = 28,
+    ["jetstream"] = 3,
+    ["jinglegun"] = 13,
+    ["lantern"] = 3,
+    ["laser"] = 8,
+    ["latte gun"] = 140,
+    ["latte knife"] = 140,
+    ["latte set"] = 280,
+    ["lightbringer"] = 32,
+    ["lights gun"] = 2,
+    ["lights knife"] = 1,
+    ["lights set"] = 3,
+    ["lil alien"] = 1,
+    ["logchopper"] = 18,
+    ["logchopper set"] = 31,
+    ["luger"] = 18,
+    ["luger set"] = 106,
+    ["lugercane"] = 13,
+    ["magma"] = 3,
+    ["magma gun"] = 13,
+    ["makeshift"] = 33,
+    ["makeshift knife"] = 35,
+    ["marble set"] = 4,
+    ["mechbug"] = 3,
+    ["meltdown"] = 2,
+    ["minty"] = 13,
+    ["monster"] = 1,
+    ["moonlight"] = 1,
+    ["moons"] = 1,
+    ["mortal blade"] = 1000000,
+    ["mr reindeer"] = 55,
+    ["mr snowman"] = 20,
+    ["mummified"] = 35,
+    ["mummy 2017"] = 25,
+    ["mummy gun hallows2018"] = 2,
+    ["mummy knife hallows2018"] = 1,
+    ["mummy set"] = 3,
+    ["mystery key"] = 1,
+    ["nebula"] = 13,
+    ["nightblade"] = 20,
+    ["nightsky"] = 5,
+    ["nik scythe"] = 150000,
+    ["niks scythe"] = 150000,
+    ["nobledragon"] = 5,
+    ["ocean"] = 285,
+    ["ocean gun"] = 65,
+    ["ocean set"] = 565,
+    ["old glory"] = 15,
+    ["old glory set"] = 37,
+    ["ollie"] = 4,
+    ["orange marble"] = 2,
+    ["orange seer"] = 2,
+    ["ornament"] = 75,
+    ["overseer eye"] = 3,
+    ["pals set"] = 20,
+    ["pearl"] = 75,
+    ["pearl set"] = 155,
+    ["pearlshine"] = 80,
+    ["pengy"] = 3,
+    ["peppermint"] = 4,
+    ["phantom"] = 10,
+    ["phantom knife"] = 70,
+    ["phaser"] = 5,
+    ["piggy"] = 55,
+    ["pine knife"] = 85,
+    ["pixel"] = 17,
+    ["plasma set"] = 33,
+    ["plasmabeam"] = 18,
+    ["plasmablade"] = 15,
+    ["potion 2017"] = 3,
+    ["potion gun"] = 2,
+    ["potion knife"] = 2,
+    ["potion set"] = 4,
+    ["prince"] = 6,
+    ["prism"] = 12,
+    ["prismatic"] = 7,
+    ["pumpkin 2017"] = 55,
+    ["pumpkin 2019"] = 12,
+    ["pumpkin pie"] = 2,
+    ["pumpkin set"] = 403,
+    ["pumpkin set 2019"] = 7,
+    ["pumpkin set 2020"] = 39,
+    ["pumpkin set 2021"] = 32,
+    ["pumpking"] = 7,
+    ["purple papers"] = 2,
+    ["purple pumpkin hallows2018"] = 3,
+    ["purple seer"] = 3,
+    ["rainbow"] = 410,
+    ["rainbow gun"] = 420,
+    ["rainbow set"] = 830,
+    ["raygun"] = 1900,
+    ["red fire"] = 1,
+    ["red luger"] = 35,
+    ["red papers"] = 2,
+    ["red pumpkin hallows2018"] = 120,
+    ["red pumpkin hallows2019"] = 3,
+    ["red pumpkin hallows2020"] = 20,
+    ["red pumpkin hallows2021"] = 17,
+    ["red scratch"] = 4,
+    ["red seer"] = 3,
+    ["reindeer"] = 3,
+    ["retro set"] = 70,
+    ["rip"] = 17,
+    ["rudolph"] = 3,
+    ["sakura"] = 1360,
+    ["sakura set"] = 2730,
+    ["sands"] = 90,
+    ["santas magic"] = 3,
+    ["santas set legend"] = 6,
+    ["santas spirit"] = 3,
+    ["saw"] = 7,
+    ["scratch set"] = 6,
+    ["seahorsey"] = 3,
+    ["seer"] = 3,
+    ["shadow"] = 6,
+    ["shadow pumpkin"] = 5,
+    ["shark"] = 20,
+    ["sidewinder"] = 4,
+    ["silent night gun"] = 12,
+    ["silent night knife"] = 50,
+    ["silent night set"] = 62,
+    ["skate set"] = 23,
+    ["skeleton key"] = 5,
+    ["sketchy"] = 4,
+    ["skool"] = 8,
+    ["skulls"] = 15,
+    ["skully"] = 15,
+    ["slashed"] = 1,
+    ["slasher"] = 15,
+    ["slasher set"] = 37,
+    ["slime gun"] = 1,
+    ["slime knife"] = 1,
+    ["slime set"] = 2,
+    ["slimy"] = 20,
+    ["small set 103"] = 1235,
+    ["small set 107"] = 1270,
+    ["snakebite gun"] = 1,
+    ["snakebite knife"] = 3,
+    ["snakebite set"] = 4,
+    ["snow dagger"] = 175,
+    ["snow set"] = 850,
+    ["snowbear"] = 3,
+    ["snowcannon"] = 675,
+    ["snowflake"] = 5,
+    ["snowflake knife xmas2018"] = 55,
+    ["snowflakes"] = 12,
+    ["snowflakes gun"] = 30,
+    ["snowman gun xmas2018"] = 25,
+    ["snowman gun xmas2021"] = 5,
+    ["snowstorm"] = 305,
+    ["soul"] = 655,
+    ["soul set"] = 1300,
+    ["sparkle set"] = 127,
+    ["sparkle1"] = 3,
+    ["sparkle10"] = 20,
+    ["sparkle2"] = 3,
+    ["sparkle3"] = 3,
+    ["sparkle4"] = 10,
+    ["sparkle5"] = 8,
+    ["sparkle6"] = 12,
+    ["sparkle7"] = 18,
+    ["sparkle8"] = 20,
+    ["sparkle9"] = 30,
+    ["spectral gun"] = 3,
+    ["spectral knife"] = 50,
+    ["spectral set"] = 53,
+    ["spectre"] = 35,
+    ["spectre gun"] = 70,
+    ["spectre set"] = 70,
+    ["spider"] = 10,
+    ["spirit"] = 645,
+    ["splitter"] = 3,
+    ["starry"] = 5,
+    ["starry gun"] = 22,
+    ["stars knife"] = 2,
+    ["steel gun"] = 8,
+    ["sub"] = 4,
+    ["sugar"] = 32,
+    ["sun"] = 2,
+    ["sun set"] = 1725,
+    ["sunrise"] = 1075,
+    ["sunset"] = 650,
+    ["sweater knife xmas2018"] = 60,
+    ["sweet"] = 150,
+    ["sweet set"] = 305,
+    ["swirl"] = 20,
+    ["swirly axe"] = 38,
+    ["swirly blade"] = 12,
+    ["swirly gun"] = 18,
+    ["swirly set"] = 56,
+    ["tailslide"] = 7,
+    ["tankie"] = 3,
+    ["tides"] = 10,
+    ["toxic gun"] = 2,
+    ["toxic knife"] = 5,
+    ["toxic set"] = 7,
+    ["traveler axe"] = 4800,
+    ["traveler gun"] = 50,
+    ["traveler knife"] = 3,
+    ["traveler set"] = 53,
+    ["travelers axe"] = 8000,
+    ["travelers gun"] = 5200,
+    ["travelers set"] = 13200,
+    ["travellers axe"] = 4800,
+    ["travellers gun"] = 5200,
+    ["treat"] = 155,
+    ["tree 2021"] = 2,
+    ["turkey"] = 2050,
+    ["ufo"] = 3,
+    ["ultra wrap"] = 2,
+    ["vampire"] = 1,
+    ["vampire bat"] = 3,
+    ["vampire gun"] = 3,
+    ["vampire knife"] = 1,
+    ["vampire set legend"] = 48,
+    ["vampire set rare"] = 4,
+    ["vampires axe"] = 1600,
+    ["vampires edge"] = 15,
+    ["vampires gun"] = 1875,
+    ["vampires set"] = 3475,
+    ["vintage set"] = 59,
+    ["virtual"] = 13,
+    ["virtual set"] = 30,
+    ["void"] = 12,
+    ["watcher gun"] = 20,
+    ["watergun"] = 160,
+    ["waves"] = 280,
+    ["waves knife"] = 65,
+    ["webbed gun"] = 25,
+    ["webs"] = 3,
+    ["winters edge"] = 5,
+    ["witched"] = 3,
+    ["wolf"] = 1,
+    ["wraith knife"] = 5,
+    ["wrap gun"] = 12,
+    ["wrap knife"] = 12,
+    ["wrap set"] = 24,
+    ["wrapped gun"] = 30,
+    ["wrapping paper set"] = 14,
+    ["xeno set"] = 810,
+    ["xenoknife"] = 405,
+    ["xenoshot"] = 405,
+    ["xmas"] = 7,
+    ["yellow seer"] = 2,
+    ["zombie"] = 10,
+    ["zombie 2023"] = 3,
+    ["zombie dog"] = 750,
+    ["zombie gun"] = 5,
+    ["zombie knife"] = 1,
+    ["zombie set"] = 6,
+    ["zombified"] = 30,
+    ["zombified gun"] = 15,
+    ["zombified knife"] = 120,
+    ["zombified set"] = 135,
 }
 
-local function LookupItemValue(name)
-    if not name then return 0 end
-    local clean = name:lower():gsub("[^%a%s%d]", ""):gsub("^%s*(.-)%s*$", "%1")
-    for k, v in pairs(ItemValues) do
-        if clean:find(k, 1, true) then return v end
-    end
-    return 10
+-- Indexation des clés par ordre de longueur décroissante (les noms spécifiques avant les génériques)
+local SortedValueKeys = {}
+for k in pairs(ItemValues) do
+    table.insert(SortedValueKeys, k)
 end
+table.sort(SortedValueKeys, function(a, b)
+    return #a > #b
+end)
 
+local function LookupItemValue(name)
+    if not name or name == "" then return 0 end
+    local clean = name:lower():gsub("[^%a%s%d]", ""):gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1")
+    if clean == "" then return 0 end
+
+    -- 1. Correspondance exacte ultra-rapide O(1)
+    if ItemValues[clean] then
+        return ItemValues[clean]
+    end
+
+    -- 2. Recherche par sous-chaîne du plus spécifique au plus générique (ex: "Chroma Laser" avant "Laser")
+    for _, k in ipairs(SortedValueKeys) do
+        if #k >= 3 and clean:find(k, 1, true) then
+            return ItemValues[k]
+        end
+    end
+
+    return 0
+end
 -- =========================================================================
 -- LOGIQUE MM2 : CIBLAGE, RÔLES & HORS LOBBY
 -- =========================================================================
@@ -648,7 +1221,158 @@ task.spawn(function()
 end)
 
 -- =========================================================================
--- ⚡ MOUVEMENTS : HIGH JUMP & NOCLIP
+-- 💃 CATALOGUE DES DÉMARCHES & PACKS D'ANIMATIONS (MM2 GREY HUB)
+-- =========================================================================
+local AnimationPacks = {
+    Zombie = {
+        idle  = {"rbxassetid://616158929", "rbxassetid://616159674"},
+        walk  = "rbxassetid://616168032",
+        run   = "rbxassetid://616163682",
+        jump  = "rbxassetid://616161997",
+        fall  = "rbxassetid://616157476",
+        climb = "rbxassetid://616156119",
+    },
+    Ninja = {
+        idle  = {"rbxassetid://656117400", "rbxassetid://656118341"},
+        walk  = "rbxassetid://656121766",
+        run   = "rbxassetid://656118852",
+        jump  = "rbxassetid://656117878",
+        fall  = "rbxassetid://656115606",
+        climb = "rbxassetid://656114519",
+    },
+    Mage = {
+        idle  = {"rbxassetid://707742142"},
+        walk  = "rbxassetid://707899778",
+        run   = "rbxassetid://707861613",
+        jump  = "rbxassetid://707853694",
+        fall  = "rbxassetid://707829767",
+        climb = "rbxassetid://707826056",
+    },
+    Vampire = {
+        idle  = {"rbxassetid://1083445855"},
+        walk  = "rbxassetid://1083462077",
+        run   = "rbxassetid://1083455352",
+        jump  = "rbxassetid://1083450166",
+        fall  = "rbxassetid://1083443587",
+        climb = "rbxassetid://1083439238",
+    },
+    OldSchool = {
+        idle  = {"rbxassetid://531982820"},
+        walk  = "rbxassetid://531984720",
+        run   = "rbxassetid://531983902",
+        jump  = "rbxassetid://531984193",
+        fall  = "rbxassetid://531983416",
+        climb = "rbxassetid://531983113",
+    },
+    Toy = {
+        idle  = {"rbxassetid://782841498"},
+        walk  = "rbxassetid://782843345",
+        run   = "rbxassetid://782842708",
+        jump  = "rbxassetid://782847020",
+        fall  = "rbxassetid://782846423",
+        climb = "rbxassetid://782843869",
+    },
+    Superhero = {
+        idle  = {"rbxassetid://616111295"},
+        walk  = "rbxassetid://616122287",
+        run   = "rbxassetid://616117076",
+        jump  = "rbxassetid://616115533",
+        fall  = "rbxassetid://616113536",
+        climb = "rbxassetid://616112879",
+    },
+    Robot = {
+        idle  = {"rbxassetid://616088211"},
+        walk  = "rbxassetid://616095330",
+        run   = "rbxassetid://616091570",
+        jump  = "rbxassetid://616090538",
+        fall  = "rbxassetid://616089452",
+        climb = "rbxassetid://616086087",
+    },
+    Cartoony = {
+        idle  = {"rbxassetid://742637544"},
+        walk  = "rbxassetid://742638842",
+        run   = "rbxassetid://742638445",
+        jump  = "rbxassetid://742637942",
+        fall  = "rbxassetid://742637151",
+        climb = "rbxassetid://742636889",
+    }
+}
+
+local function ApplyAnimationPack(packName)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local animScript = char:FindFirstChild("Animate")
+    if not animScript then return end
+    local pack = AnimationPacks[packName]
+    if not pack then return end
+
+    pcall(function()
+        local walkVal = animScript:FindFirstChild("walk")
+        if walkVal and walkVal:FindFirstChildOfClass("Animation") then
+            walkVal:FindFirstChildOfClass("Animation").AnimationId = pack.walk
+        end
+        local runVal = animScript:FindFirstChild("run")
+        if runVal and runVal:FindFirstChildOfClass("Animation") then
+            runVal:FindFirstChildOfClass("Animation").AnimationId = pack.run
+        end
+        local idleVal = animScript:FindFirstChild("idle")
+        if idleVal then
+            local anims = idleVal:GetChildren()
+            if anims[1] and pack.idle[1] then anims[1].AnimationId = pack.idle[1] end
+            if anims[2] and (pack.idle[2] or pack.idle[1]) then anims[2].AnimationId = pack.idle[2] or pack.idle[1] end
+        end
+        local jumpVal = animScript:FindFirstChild("jump")
+        if jumpVal and jumpVal:FindFirstChildOfClass("Animation") then
+            jumpVal:FindFirstChildOfClass("Animation").AnimationId = pack.jump
+        end
+        local fallVal = animScript:FindFirstChild("fall")
+        if fallVal and fallVal:FindFirstChildOfClass("Animation") then
+            fallVal:FindFirstChildOfClass("Animation").AnimationId = pack.fall
+        end
+        local climbVal = animScript:FindFirstChild("climb")
+        if climbVal and climbVal:FindFirstChildOfClass("Animation") then
+            climbVal:FindFirstChildOfClass("Animation").AnimationId = pack.climb
+        end
+    end)
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+        hum:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    MM2State.ActivePack = packName
+end
+
+local function ResetAnimationPack()
+    MM2State.ActivePack = nil
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+        local animScript = char:FindFirstChild("Animate")
+        if animScript then
+            animScript.Disabled = true
+            task.wait(0.05)
+            animScript.Disabled = false
+        end
+        hum:ChangeState(Enum.HumanoidStateType.Running)
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    if MM2State.ActivePack and AnimationPacks[MM2State.ActivePack] then
+        task.wait(0.6)
+        ApplyAnimationPack(MM2State.ActivePack)
+    end
+end)
+
+-- =========================================================================
+-- ⚡ MOUVEMENTS : HIGH JUMP, SAUT INFINI & NOCLIP
 -- =========================================================================
 RunService.Stepped:Connect(function()
     if MM2State.Noclip and LocalPlayer.Character then
@@ -659,11 +1383,193 @@ RunService.Stepped:Connect(function()
 end)
 
 UserInputService.JumpRequest:Connect(function()
-    if MM2State.HighJump and LocalPlayer.Character then
+    if MM2State and MM2State.HighJump and LocalPlayer.Character then
         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.UseJumpPower = true
             hum.JumpPower = MM2State.JumpPower
+        end
+    end
+end)
+
+-- =========================================================================
+-- 💉 HOOK DYNAMIQUE DANS L'UI OFFICIELLE ZERO POINT (HUMANOID -> MOVEMENT MODIFIERS)
+-- =========================================================================
+local function SetupZeroPointGuiHook()
+    local searchRoots = {}
+    pcall(function()
+        if typeof(gethui) == "function" then
+            local h = gethui()
+            if h then table.insert(searchRoots, h) end
+        end
+    end)
+    pcall(function()
+        if typeof(get_hidden_gui) == "function" then
+            local h = get_hidden_gui()
+            if h then table.insert(searchRoots, h) end
+        end
+    end)
+    pcall(function()
+        if CoreGui then table.insert(searchRoots, CoreGui) end
+    end)
+    pcall(function()
+        if LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") then
+            table.insert(searchRoots, LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+        end
+    end)
+
+    local function HookJumpModifier(label)
+        local row = label.Parent
+        if not row or row:FindFirstChild("InfJumpToggle") then return end
+
+        -- Création du switch toggle Pill shape (style officiel Zero Point)
+        local toggleBg = Instance.new("TextButton")
+        toggleBg.Name = "InfJumpToggle"
+        toggleBg.Size = UDim2.new(0, 38, 0, 18)
+        toggleBg.Position = UDim2.new(1, -44, 0.5, -9)
+        toggleBg.BackgroundColor3 = MM2State.InfJump and Color3.fromRGB(220, 20, 100) or Color3.fromRGB(30, 25, 35)
+        toggleBg.BorderSizePixel = 0
+        toggleBg.Text = ""
+        toggleBg.AutoButtonColor = false
+        toggleBg.ZIndex = (label.ZIndex or 1) + 10
+        toggleBg.Parent = row
+        Instance.new("UICorner", toggleBg).CornerRadius = UDim.new(1, 0)
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1
+        stroke.Color = Color3.fromRGB(60, 45, 70)
+        stroke.Parent = toggleBg
+
+        local knob = Instance.new("Frame")
+        knob.Name = "Knob"
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = MM2State.InfJump and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        knob.BorderSizePixel = 0
+        knob.ZIndex = toggleBg.ZIndex + 1
+        knob.Parent = toggleBg
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local function SetToggleState(val)
+            _G.InfJump = val
+            MM2State.InfJump = val
+            TweenService:Create(toggleBg, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                BackgroundColor3 = val and Color3.fromRGB(220, 20, 100) or Color3.fromRGB(30, 25, 35)
+            }):Play()
+            TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                Position = val and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            }):Play()
+        end
+
+        toggleBg.MouseButton1Click:Connect(function()
+            SetToggleState(not _G.InfJump)
+        end)
+
+        if label:IsA("TextButton") then
+            label.MouseButton1Click:Connect(function()
+                SetToggleState(not _G.InfJump)
+            end)
+        end
+
+        -- Synchronisation globale si l'état change via une autre commande/UI
+        task.spawn(function()
+            local lastState = MM2State.InfJump
+            while toggleBg and toggleBg.Parent do
+                if MM2State.InfJump ~= lastState then
+                    lastState = MM2State.InfJump
+                    SetToggleState(lastState)
+                end
+                task.wait(0.2)
+            end
+        end)
+    end
+
+    local function CheckDescendant(desc)
+        if (desc:IsA("TextLabel") or desc:IsA("TextButton")) then
+            local clean = desc.Text:lower():gsub("%s+", "")
+            if clean == "jumpmodifier" or desc.Text:lower():find("jump modifier") then
+                HookJumpModifier(desc)
+            end
+        end
+    end
+
+    -- 1. Scan initial
+    for _, root in ipairs(searchRoots) do
+        for _, desc in ipairs(root:GetDescendants()) do
+            CheckDescendant(desc)
+        end
+    end
+
+    -- 2. Écoute événementielle dès qu'un nouvel élément apparaît (ex: chargement de Zero Point)
+    for _, root in ipairs(searchRoots) do
+        root.DescendantAdded:Connect(function(desc)
+            task.wait(0.05)
+            CheckDescendant(desc)
+        end)
+    end
+
+    -- 3. Surveillance continue en tâche de fond (toutes les 1.5s)
+    task.spawn(function()
+        while task.wait(1.5) do
+            for _, root in ipairs(searchRoots) do
+                for _, desc in ipairs(root:GetDescendants()) do
+                    CheckDescendant(desc)
+                end
+            end
+        end
+    end)
+end
+
+-- Lancement immédiat de la surveillance du hook
+SetupZeroPointGuiHook()
+
+-- =========================================================================
+-- 🛡️ SYSTÈME ANTI-FLING (PROTECTION COLLISIONS & VÉLOCITÉ)
+-- =========================================================================
+local lastSafeGroundedCFrame = nil
+
+RunService.Stepped:Connect(function()
+    if not MM2State.AntiFling then return end
+    local myChar = LocalPlayer.Character
+    if not myChar then return end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            for _, part in ipairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not MM2State.AntiFling then return end
+    local myChar = LocalPlayer.Character
+    if not myChar then return end
+
+    local root = myChar:FindFirstChild("HumanoidRootPart")
+    local hum = myChar:FindFirstChildOfClass("Humanoid")
+    if not root or not hum or hum.Health <= 0 then return end
+
+    if hum.FloorMaterial ~= Enum.Material.Air and root.AssemblyLinearVelocity.Magnitude < 40 then
+        lastSafeGroundedCFrame = root.CFrame
+    end
+
+    local angVel = root.AssemblyAngularVelocity.Magnitude
+    local linVel = root.AssemblyLinearVelocity.Magnitude
+
+    if angVel > 60 or linVel > 180 then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        for _, obj in ipairs(root:GetDescendants()) do
+            if obj:IsA("BodyMover") or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or obj:IsA("BodyThrust") or obj:IsA("RocketPropulsion") then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+        if lastSafeGroundedCFrame then
+            root.CFrame = lastSafeGroundedCFrame + Vector3.new(0, 1.5, 0)
         end
     end
 end)
@@ -1064,6 +1970,18 @@ local function CreateHalloweenGui()
         PageMM2.CanvasSize = UDim2.new(0, 0, 0, mm2Layout.AbsoluteContentSize.Y + 20)
     end)
 
+        local function AddSectionHeader(txt, order)
+        local h = Instance.new("TextLabel")
+        h.Size = UDim2.new(1, -6, 0, 24)
+        h.BackgroundTransparency = 1
+        h.Font = Enum.Font.GothamBold
+        h.Text = "── " .. string.upper(txt) .. " ──"
+        h.TextColor3 = Theme.AccentOrange
+        h.TextSize = 10
+        h.LayoutOrder = order
+        h.Parent = PageMM2
+    end
+
     local function AddControlToggle(titleText, initial, callback, order)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -6, 0, 32)
@@ -1121,51 +2039,90 @@ local function CreateHalloweenGui()
         b.MouseButton1Click:Connect(callback)
     end
 
-    -- Contrôles MM2 dans l'onglet
+    -- ── ESP & VISUELS ──
+    AddSectionHeader("👁️ ESP & VISUELS", 1)
     AddControlToggle("ESP Rôles & Noms (In-Game Only)", MM2State.RoleESP, function(v)
         MM2State.RoleESP = v
         MM2State.NameTagsESP = v
         if not v then ClearAllESP() end
-    end, 1)
-
-    AddControlToggle("Silent Aim Couteau & Touche [E]", MM2State.MurderSilentAim, function(v)
-        MM2State.MurderSilentAim = v
     end, 2)
-
-    AddActionBtn("🎯 LANCER LE COUTEAU SUR CIBLE [E]", Color3.fromRGB(80, 20, 30), function()
-        ThrowKnifeSilent()
-    end, 3)
-
-    AddActionBtn("💀 KILL ALL PLAYERS (MURDERER)", Color3.fromRGB(100, 25, 25), function()
-        KillAllPlayers()
-    end, 4)
-
-    AddControlToggle("Silent Aim Shérif (Tir sur Murderer)", MM2State.SheriffSilentAim, function(v)
-        MM2State.SheriffSilentAim = v
-    end, 5)
-
-    AddActionBtn("💥 TIRER SUR LE MURDERER", Color3.fromRGB(20, 50, 90), function()
-        ShootGunSilent()
-    end, 6)
-
-    AddControlToggle("Auto Pick Gun Tombé", MM2State.AutoPickGun, function(v)
-        MM2State.AutoPickGun = v
-    end, 7)
-
-    AddControlToggle("High Jump (Puissance 95)", MM2State.HighJump, function(v)
-        MM2State.HighJump = v
-    end, 8)
-
     AddControlToggle("Trade Values Helper & Auto-Accept", MM2State.TradeOverlay, function(v)
         MM2State.TradeOverlay = v
-    end, 9)
+    end, 3)
 
+    -- ── COMBAT & SILENT AIM ──
+    AddSectionHeader("🎯 COMBAT & SILENT AIM", 10)
+    AddControlToggle("Silent Aim Couteau & Touche [E]", MM2State.MurderSilentAim, function(v)
+        MM2State.MurderSilentAim = v
+    end, 11)
+    AddActionBtn("🎯 LANCER LE COUTEAU SUR CIBLE [E]", Color3.fromRGB(80, 20, 30), function()
+        ThrowKnifeSilent()
+    end, 12)
+    AddActionBtn("💀 KILL ALL PLAYERS (MURDERER)", Color3.fromRGB(100, 25, 25), function()
+        KillAllPlayers()
+    end, 13)
+    AddControlToggle("Silent Aim Shérif (Tir sur Murderer)", MM2State.SheriffSilentAim, function(v)
+        MM2State.SheriffSilentAim = v
+    end, 14)
+    AddActionBtn("💥 TIRER SUR LE MURDERER", Color3.fromRGB(20, 50, 90), function()
+        ShootGunSilent()
+    end, 15)
+    AddControlToggle("Auto Pick Gun Tombé", MM2State.AutoPickGun, function(v)
+        MM2State.AutoPickGun = v
+    end, 16)
+
+    -- ── MOUVEMENT & SAUTS ──
+    AddSectionHeader("⚡ MOUVEMENT & SAUTS", 20)
+    AddControlToggle("High Jump (Puissance 95)", MM2State.HighJump, function(v)
+        MM2State.HighJump = v
+    end, 21)
+    AddControlToggle("Saut Infini (Infinite Jump)", MM2State.InfJump, function(v)
+        MM2State.InfJump = v
+    end, 22)
+
+    -- ── PROTECTION & FLING ──
+    AddSectionHeader("🛡️ PROTECTION & FLING", 30)
+    AddControlToggle("Bouclier Anti-Fling (Annule Collisions & Fling)", MM2State.AntiFling, function(v)
+        MM2State.AntiFling = v
+    end, 31)
     AddActionBtn("🌪️ FLING LE JOUEUR LE PLUS PROCHE", Color3.fromRGB(70, 30, 90), function()
         local c = GetClosestTargetForMurder()
         if c then FlingPlayer(c) end
-    end, 10)
+    end, 32)
 
-    -- Onglet switching
+    -- ── PACKS DÉMARCHES & ANIMATIONS ──
+    AddSectionHeader("🎭 DÉMARCHES & ANIMATIONS", 40)
+    AddActionBtn("🔄 DÉMARCHE PAR DÉFAUT (RÉINITIALISER)", Color3.fromRGB(45, 45, 55), function()
+        ResetAnimationPack()
+    end, 41)
+    AddActionBtn("🧟 DÉMARCHE ZOMBIE", Color3.fromRGB(45, 65, 40), function()
+        ApplyAnimationPack("Zombie")
+    end, 42)
+    AddActionBtn("🥷 DÉMARCHE NINJA", Color3.fromRGB(30, 40, 65), function()
+        ApplyAnimationPack("Ninja")
+    end, 43)
+    AddActionBtn("🧙 DÉMARCHE MAGE", Color3.fromRGB(55, 30, 75), function()
+        ApplyAnimationPack("Mage")
+    end, 44)
+    AddActionBtn("🧛 DÉMARCHE VAMPIRE", Color3.fromRGB(75, 25, 35), function()
+        ApplyAnimationPack("Vampire")
+    end, 45)
+    AddActionBtn("📻 DÉMARCHE OLD SCHOOL", Color3.fromRGB(60, 45, 30), function()
+        ApplyAnimationPack("OldSchool")
+    end, 46)
+    AddActionBtn("🤖 DÉMARCHE TOY / JOUET", Color3.fromRGB(30, 65, 75), function()
+        ApplyAnimationPack("Toy")
+    end, 47)
+    AddActionBtn("🦸 DÉMARCHE SUPERHERO", Color3.fromRGB(70, 40, 25), function()
+        ApplyAnimationPack("Superhero")
+    end, 48)
+    AddActionBtn("⚙️ DÉMARCHE ROBOT", Color3.fromRGB(45, 45, 55), function()
+        ApplyAnimationPack("Robot")
+    end, 49)
+    AddActionBtn("🎨 DÉMARCHE CARTOONY", Color3.fromRGB(65, 35, 65), function()
+        ApplyAnimationPack("Cartoony")
+    end, 50)
+
     ActiveItem.MouseButton1Click:Connect(function()
         PageLoader.Visible = true
         PageMM2.Visible = false
